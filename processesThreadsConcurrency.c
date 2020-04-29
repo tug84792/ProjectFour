@@ -117,3 +117,49 @@ void displayTime(char *currentTime) {
     //Here, I use strftime to print the time.
     strftime(currentTime, 26, "%Y-%m-%d %H:%M:%S", (const struct tm *) timestamp);
 }
+int handleSignals(){
+    int i = 0;
+    //lock, update i to get value for completed signals, then unlock
+    pthread_mutex_lock(&(*sharedMemoryObject).signalMutexLock);
+    i = (*sharedMemoryObject).counterForComplete;
+    pthread_mutex_unlock(&(*sharedMemoryObject).signalMutexLock);
+    return i;
+}
+
+//With this function, I basically V() the number of signals I got
+void incrementReceivedSigCount(int getSignalType){
+    //Error checking
+    if (pthread_mutex_lock(&(*sharedMemoryObject).mutexLock) == -1) {
+        printError();
+    }
+    //Use this if-else to filter out the appropriate counter.
+    if(getSignalType == SIGUSR1){
+        (*sharedMemoryObject).counterForSIGUSR1Received++;
+    } else {
+        (*sharedMemoryObject).counterForSIGUSR2Received++;
+    }
+    //Let go of the lick and error check too.
+    if (pthread_mutex_unlock(&(*sharedMemoryObject).mutexLock) == -1) {
+        printError();
+    }
+}
+
+//Both of the following functions: incrementSignalsHandled(), decrementSignalsHandled(),
+// work just like handleSignals(). Update a counter variable that's protected by a lock.
+//In between, i have a separate function to use those functions.
+int incrementSignalsHandled(int totalSignals){
+    pthread_mutex_lock(&(*sharedMemoryObject).signalMutexLock);
+    (*sharedMemoryObject).counterForComplete += totalSignals;
+    pthread_mutex_unlock(&(*sharedMemoryObject).signalMutexLock);
+}
+void handleSIGUSR1(int signalArg) {
+    incrementReceivedSigCount(signalArg);
+}
+int decrementSignalsHandled(int totalSignals){
+    pthread_mutex_lock(&(*sharedMemoryObject).signalMutexLock);
+    (*sharedMemoryObject).counterForComplete -= totalSignals;
+    pthread_mutex_unlock(&(*sharedMemoryObject).signalMutexLock);
+}
+void handleSIGUSR2(int signalType){
+    incrementReceivedSigCount(signalType);
+}
