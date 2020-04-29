@@ -163,3 +163,86 @@ int decrementSignalsHandled(int totalSignals){
 void handleSIGUSR2(int signalType){
     incrementReceivedSigCount(signalType);
 }
+
+//This works the same as the incrementReceivedSigCount function, except it's for signals sent out
+void incrementSentSigCount(int sigType){
+
+    if (pthread_mutex_lock(&(*sharedMemoryObject).mutexLock) == -1) {
+        printError();
+    }
+    if(sigType == SIGUSR1){
+        (*sharedMemoryObject).counterForSIGUSR1Sent++;
+    } else {
+        (*sharedMemoryObject).counterForSIGUSR2Sent++;
+    }
+    if (pthread_mutex_unlock(&(*sharedMemoryObject).mutexLock) == -1) {
+        printError();
+    }
+
+}
+
+
+void handledSignals(int signalArg){
+    //Current time string
+    char ctString[26];
+    //built-in struct
+    struct timeb currentTime;
+    //Initialize averages.
+    float SIGUSR1AverageTime = 0, SIGUSR2AverageTime = 0;
+    //initialize all counters to 0 and last variable acts as a boolean for printing later on.
+    int sentCountSigUsr1 = 0, receivedCountSigUsr1 = 0, sentCountSigUsr2 = 0, receivedCountSigUsr2 = 0, validForPrinting = 0;
+
+    //Begin locking for updating counter.
+    pthread_mutex_lock(&(*sharedMemoryObject).signalMutexLock);
+    (*sharedMemoryObject).counterForComplete += 1;
+
+    //Here I check what kind of signal it was, whether SIGUSR1 or 2
+    if(signalArg == SIGUSR1){
+        //Used built-in ftime() function
+        ftime(&currentTime);
+        //I do some calculating to get the appropriate time. The current time minus the last recorded one
+        totalUSR1 = totalUSR1 +  (currentTime.time * 1000 + currentTime.millitm - finalSIGUSR1);
+        //Update final user time
+        finalSIGUSR1 = (currentTime.time * 1000) + currentTime.millitm;
+        //update counter
+        counterForUSR1++;
+    }
+    //Same as before, except for SIGUSR2
+    else {
+        ftime(&currentTime);
+        totalUSR2 = totalUSR2  +  (currentTime.time * 1000 + currentTime.millitm - finalSIGUSR2);
+        finalSIGUSR2 = (currentTime.time * 1000) + currentTime.millitm;
+        counterForUSR2++;
+    }
+
+    if((*sharedMemoryObject).counterForComplete == 10){
+        //Initialize the variables to 0, otherwise, it isn't working
+        //then, calculate the average for each respective user
+        SIGUSR1AverageTime = 0;
+        SIGUSR1AverageTime = totalUSR1 / counterForUSR1,
+        SIGUSR2AverageTime = 0;
+        SIGUSR2AverageTime = totalUSR2 / counterForUSR2;
+
+        //Error check for locking
+        if (pthread_mutex_lock(&(*sharedMemoryObject).mutexLock) == -1) {
+            printError();
+        }
+        //Update the counters for each user
+        sentCountSigUsr1 = (*sharedMemoryObject).counterForSIGUSR1Sent;
+        receivedCountSigUsr1 = (*sharedMemoryObject).counterForSIGUSR1Received;
+
+        sentCountSigUsr2 = (*sharedMemoryObject).counterForSIGUSR2Sent;
+        receivedCountSigUsr2 = (*sharedMemoryObject).counterForSIGUSR2Received;
+
+        //Error checking
+        if (pthread_mutex_unlock(&(*sharedMemoryObject).mutexLock) == -1) {
+            printError();
+        }
+
+        //Set boolean variable to true
+        validForPrinting = 1;
+
+        //reset all counters for next time it's run
+        (*sharedMemoryObject).counterForComplete = 0;
+        totalUSR1 = 0, counterForUSR1 = 0, totalUSR2 = 0, counterForUSR2 = 0;
+    }
