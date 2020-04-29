@@ -267,3 +267,62 @@ void handledSignals(int signalArg){
         printf("+++++++++++++++++++++++++++++++++++++++++++++++\n");
     }
 }
+nt main(int argc, char *argv[]) {
+
+    //Initialize some ints for suture use.
+    int SIG_USR_1 = 1, i = 0, randNum = 0, mainSignal, s =0;
+    //Creating a pool of children processes and a main process (parent)
+    pid_t childPids[TOTALAMOUNTOFPROCESSES], processIDs;
+    //signal set and masked signal
+    sigset_t signalSet, maskedSignals;
+    //Initialize the object using my initialization function
+    sharedMemoryObject = initializeSMO();
+    //built-in timeb struct and ftime() to retunr the time
+    struct timeb ctMain;
+    ftime(&ctMain);
+
+    //grab both signals but ignore them in the sense that don't return anything or cause further action.
+    //Then, grab the signal's time
+    signal(SIGUSR1, SIG_IGN);
+    finalSIGUSR1= (ctMain.time * 1000) + ctMain.millitm;
+
+    signal(SIGUSR2, SIG_IGN);
+    finalSIGUSR2= (ctMain.time * 1000) + ctMain.millitm;
+
+    //for loop that iterates through every single process (8)
+    for(i = 0; i < TOTALAMOUNTOFPROCESSES; i++){
+        processIDs = fork();
+        //Child process
+        if(processIDs == 0) {
+            //Load given data into the object buffer
+            sharedMemoryObject = receiveSMO();
+            if (i == 0) {
+                //This is the process that does the reporting. It'll basically to the function before main.
+                //And it will print the respective info for each SIGUSR
+                signal(SIGUSR1, &handledSignals);
+                signal(SIGUSR2, &handledSignals);
+
+                while(true) {
+                    sigfillset(&maskedSignals);
+                    sigprocmask(SIG_SETMASK, &maskedSignals, NULL);
+                    sigemptyset(&signalSet);
+                    sigaddset(&signalSet, SIGUSR2);
+                    sigaddset(&signalSet, SIGUSR1);
+                    while (!sigwait(&signalSet, &mainSignal)) {
+                        handledSignals(mainSignal);
+                    }
+                }
+            } else if ( i == 1 || i == 2 ) {
+                //Signal handling
+                signal(SIGUSR2, SIG_IGN);
+                signal(SIGUSR1, &handleSIGUSR1);
+                while(true) {
+                    sigfillset(&maskedSignals);
+                    sigprocmask(SIG_SETMASK, &maskedSignals, NULL);
+                    sigemptyset(&signalSet);
+                    sigaddset(&signalSet, SIGUSR2);
+                    while (!sigwait(&signalSet, &mainSignal)) {
+                        handleSIGUSR2(mainSignal);
+                    }
+                }
+            } 
