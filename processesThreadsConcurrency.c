@@ -246,3 +246,24 @@ void handledSignals(int signalArg){
         (*sharedMemoryObject).counterForComplete = 0;
         totalUSR1 = 0, counterForUSR1 = 0, totalUSR2 = 0, counterForUSR2 = 0;
     }
+//Stop locking
+    pthread_mutex_unlock(&(*sharedMemoryObject).signalMutexLock);
+    //Here I use that boolean variable to see if everything checks off. And if it does, then print the information.
+    if(validForPrinting) {
+        //display the current time
+        displayTime(ctString);
+        //Print all info in a nice format
+        printf("+++++++++++++++++++++++++++++++++++++++++++++++\n");
+        printf("%s\n", ctString);
+        printf("Number sent \n");
+        printf("Total SIGUSR1's that were sent: %d\n", sentCountSigUsr1);
+        printf("Total SIGUSR2 that were sent: %d\n", sentCountSigUsr2);
+        printf("Number Received \n");
+        printf("Total SIGUSR1 received : %d\n", receivedCountSigUsr1);
+        printf("Total SIGUSR2 received : %d\n", receivedCountSigUsr2);
+        printf("Averages \n");
+        printf("The SIGUSR1's average time was: %f ms\n", SIGUSR1AverageTime);
+        printf("The SIGUSR2's average time was: %f ms\n", SIGUSR2AverageTime);
+        printf("+++++++++++++++++++++++++++++++++++++++++++++++\n");
+    }
+}
