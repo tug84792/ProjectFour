@@ -272,9 +272,9 @@ void handledSignals(int signalArg){
 int main(int argc, char *argv[]) {
 
     //Initialize some ints for suture use.
-    int SIG_USR_1 = 1, i = 0, randNum = 0, mainSignal, s =0;
+    int SIG_USR_1 = 1, i = 0, randNum = 0, mainSignal;
     //Creating a pool of children processes and a main process (parent)
-    pid_t childPids[TOTALAMOUNTOFPROCESSES], processIDs;
+    pid_t childPids[TOTALAMOUNTOFPROCESSES], processIDs = 0;
     //signal set and masked signal
     sigset_t signalSet, maskedSignals;
     //Initialize the object using my initialization function
@@ -293,6 +293,7 @@ int main(int argc, char *argv[]) {
 
     //for loop that iterates through every single process (8)
     for(i = 0; i < TOTALAMOUNTOFPROCESSES; i++){
+        //Parent process that spawns everything else
         processIDs = fork();
         //Child process
         if(processIDs == 0) {
@@ -320,7 +321,9 @@ int main(int argc, char *argv[]) {
                         handledSignals(mainSignal);
                     }
                 }
-            } else if ( i == 1 || i == 2 ) {
+            }
+            //First 2 signal handling processes
+            else if ( i == 1 || i == 2 ) {
                 //Signal handling
                 signal(SIGUSR2, SIG_IGN);
                 signal(SIGUSR1, &handleSIGUSR1);
@@ -334,7 +337,9 @@ int main(int argc, char *argv[]) {
                         handleSIGUSR2(mainSignal);
                     }
                 }
-            } else if ( i == 3 || i == 4 ) {
+            }
+            //Second 2 signal handling processes
+            else if ( i == 3 || i == 4 ) {
                 //Signal handling
                 signal(SIGUSR1, SIG_IGN);
                 signal(SIGUSR2, &handleSIGUSR2);
@@ -349,16 +354,21 @@ int main(int argc, char *argv[]) {
                     }
                 }
             }
+            //The rest of the processes (i's 5,6,7) generate the processes
             else {
                 srand(time(NULL));
 
                 //Here I signal the process that will generate everything.
                 while(true){
+                    //produce a random number then make the system sleep
                     randNum = (rand() % 10) + 1;
                     usleep(randNum * 1000);
-
+                    //signal both users
                     signal(SIGUSR1, SIG_IGN);
                     signal(SIGUSR2, SIG_IGN);
+
+                    //Depending on what SIGUSR is returned, kill it, add to the number of signal that were sent out to the
+                    //respective signal, and reset.
                     if(SIG_USR_1) {
                         kill(0, SIGUSR1);
                         incrementSentSigCount(SIGUSR1);
@@ -368,8 +378,12 @@ int main(int argc, char *argv[]) {
                         SIG_USR_1 = 1;
                         incrementSentSigCount(SIGUSR2);
                     }
+                    //Update value for counting how many signals were sent out while protecting it with a lock
                     pthread_mutex_lock(&(*sharedMemoryObject).counterMutexLock);
                     (*sharedMemoryObject).counterForSignals++;
+
+                    //Once the object is done what it needs to do, use the SIGTERM flag to terminate and signal finishing.
+                    //It can be blocked, handles, or ignored as needed.
                     if((*sharedMemoryObject).complete){
                         kill(0, SIGTERM);
                     }
