@@ -326,6 +326,7 @@ int main(int argc, char *argv[]) {
             else if ( i == 1 || i == 2 ) {
                 //Signal handling
                 signal(SIGUSR2, SIG_IGN);
+                //Signal SIGUSR1 but later handle 2
                 signal(SIGUSR1, &handleSIGUSR1);
                 while(true) {
                     sigfillset(&maskedSignals);
@@ -342,6 +343,7 @@ int main(int argc, char *argv[]) {
             else if ( i == 3 || i == 4 ) {
                 //Signal handling
                 signal(SIGUSR1, SIG_IGN);
+                //Signal SIGUSR2 but later handle 1
                 signal(SIGUSR2, &handleSIGUSR2);
                 while(true) {
                     sigfillset(&maskedSignals);
