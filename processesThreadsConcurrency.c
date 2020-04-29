@@ -325,4 +325,68 @@ nt main(int argc, char *argv[]) {
                         handleSIGUSR2(mainSignal);
                     }
                 }
-            } 
+            } else if ( i == 3 || i == 4 ) {
+                //Signal handling
+                signal(SIGUSR1, SIG_IGN);
+                signal(SIGUSR2, &handleSIGUSR2);
+                while(true) {
+                    sigfillset(&maskedSignals);
+                    sigprocmask(SIG_SETMASK, &maskedSignals, NULL);
+                    sigemptyset(&signalSet);
+                    sigaddset(&signalSet, SIGUSR1);
+                    while (!sigwait(&signalSet, &mainSignal)) {
+                        handleSIGUSR1(mainSignal);
+                    }
+                }
+            }
+            else {
+                srand(time(NULL));
+
+                //Here I signal the process that will generate everything.
+                while(true){
+                    randNum = (rand() % 10) + 1;
+                    usleep(randNum * 1000);
+
+                    signal(SIGUSR1, SIG_IGN);
+                    signal(SIGUSR2, SIG_IGN);
+                    if(SIG_USR_1) {
+                        kill(0, SIGUSR1);
+                        incrementSentSigCount(SIGUSR1);
+                        SIG_USR_1 = 0;
+                    } else {
+                        kill(0, SIGUSR2);
+                        SIG_USR_1 = 1;
+                        incrementSentSigCount(SIGUSR2);
+                    }
+                    pthread_mutex_lock(&(*sharedMemoryObject).counterMutexLock);
+                    (*sharedMemoryObject).counterForSignals++;
+                    if((*sharedMemoryObject).complete){
+                        kill(0, SIGTERM);
+                    }
+                    pthread_mutex_unlock(&(*sharedMemoryObject).counterMutexLock);
+                }//end of while loop for parent
+            }//end of else statement/parent
+            break;
+        }//end of child process
+    }//end of for loop
+
+    //continuing the parent process
+    if(processIDs != 0){
+
+        //Make the parent sleep for aa little bit
+        sleep(10);
+        //Safely update the status of complete using locking
+        pthread_mutex_lock(&(*sharedMemoryObject).counterMutexLock);
+        (*sharedMemoryObject).complete = 1;
+        pthread_mutex_unlock(&(*sharedMemoryObject).counterMutexLock);
+
+        //Here, I use a for loop in order to make the parent wait for all 10 of the child processes
+        for(i = 0; i < TOTALAMOUNTOFPROCESSES; i++){
+            wait(NULL);
+        }
+        printf("Parent process is now complete and will exit\n");
+    }//end of parent process
+    //Clean up all usages in the program using my clean function
+    cleanSMO();
+    exit(EXIT_SUCCESS);
+}
