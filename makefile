@@ -1,5 +1,5 @@
-# Harith Siddiqui - Operating Systems 3207 - Project 2
+# Harith Siddiqui - Operating Systems 3207 - Project 4
 # Lab TA: Charles Chang
 ProjectFour: processesThreadsConcurrency.c processesThreadsConcurrency.h
 
-	gcc -Wall processesThreadsConcurrency.c -o projFour -lpthread
+	gcc -o projFour processesThreadsConcurrency.c  -lpthread -lrt
