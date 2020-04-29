@@ -23,7 +23,6 @@ struct sharedMemoryBuffer * receiveSMO() {
         printError();
     }
 
-    /* Map the object into the caller's address space */
     //Using mmap(), I'll map the shm object from previous line into the address space of the caller, basically the FD.
     //The pages can be read and/or written due to the given flags. MAP_SHARED will keep everything updated.
     struct sharedMemoryBuffer *sharedMemoryProcess = mmap(NULL, sizeof(struct sharedMemoryBuffer), PROT_READ | PROT_WRITE, MAP_SHARED, fileDescriptor, 0);
@@ -46,7 +45,7 @@ struct sharedMemoryBuffer* initializeSMO(){
     if (fileDescriptor == -1) {
         printError();
     }
-    
+
     //Here is where I do the actual setting of the size of the fd to the struct using ftruncate. I also do an error check.
     if (ftruncate(fileDescriptor, sizeof(struct sharedMemoryBuffer)) == -1) {
         printError();
@@ -61,7 +60,7 @@ struct sharedMemoryBuffer* initializeSMO(){
     }
     /* Initialize semaphores as process-shared, with value 0 */
     //Here, I'll initialize semaphores to be shared with processes, to the address of sem s, with value of 1
-    if (sem_init(&(*sharedMemoryProcess).s, 1, 1) == -1) {
+    if (sem_init(&(*sharedMemoryProcess).siddiquiSemaphore, 1, 1) == -1) {
         printError();
     }
     //store the local FD to the global variable.
@@ -97,7 +96,7 @@ void cleanSMO(){
     //Close out the fd and shared memory object path, and object itself.
     close(sharedMemoryFileDescriptor);
     shm_unlink(pathForSharedMemory);
-    sem_destroy(&(*sharedMemoryObject).s);
+    sem_destroy(&(*sharedMemoryObject).siddiquiSemaphore);
 
     //Get rid of all the locks
     pthread_mutex_destroy(&(*sharedMemoryObject).mutexLock);
@@ -117,6 +116,7 @@ void displayTime(char *currentTime) {
     //Here, I use strftime to print the time.
     strftime(currentTime, 26, "%Y-%m-%d %H:%M:%S", (const struct tm *) timestamp);
 }
+
 int handleSignals(){
     int i = 0;
     //lock, update i to get value for completed signals, then unlock
@@ -163,6 +163,7 @@ int decrementSignalsHandled(int totalSignals){
 void handleSIGUSR2(int signalType){
     incrementReceivedSigCount(signalType);
 }
+
 
 //This works the same as the incrementReceivedSigCount function, except it's for signals sent out
 void incrementSentSigCount(int sigType){
@@ -246,7 +247,7 @@ void handledSignals(int signalArg){
         (*sharedMemoryObject).counterForComplete = 0;
         totalUSR1 = 0, counterForUSR1 = 0, totalUSR2 = 0, counterForUSR2 = 0;
     }
-//Stop locking
+    //Stop locking
     pthread_mutex_unlock(&(*sharedMemoryObject).signalMutexLock);
     //Here I use that boolean variable to see if everything checks off. And if it does, then print the information.
     if(validForPrinting) {
@@ -267,7 +268,8 @@ void handledSignals(int signalArg){
         printf("+++++++++++++++++++++++++++++++++++++++++++++++\n");
     }
 }
-nt main(int argc, char *argv[]) {
+
+int main(int argc, char *argv[]) {
 
     //Initialize some ints for suture use.
     int SIG_USR_1 = 1, i = 0, randNum = 0, mainSignal, s =0;
@@ -302,10 +304,16 @@ nt main(int argc, char *argv[]) {
                 signal(SIGUSR1, &handledSignals);
                 signal(SIGUSR2, &handledSignals);
 
+                //the following 3 while loops do the same thing except it depends on which process is doing it (hence the value of i):
+                //1. Set all signals to full
+                //2. Switch out the flag to signal mask that I created
+                //3. Add signal num to the signal
+                //4. handle the main signal based on the fact that you're not waiting for the signalSet and mainSignal
                 while(true) {
                     sigfillset(&maskedSignals);
                     sigprocmask(SIG_SETMASK, &maskedSignals, NULL);
                     sigemptyset(&signalSet);
+                    //Master child, account for everything
                     sigaddset(&signalSet, SIGUSR2);
                     sigaddset(&signalSet, SIGUSR1);
                     while (!sigwait(&signalSet, &mainSignal)) {
@@ -320,6 +328,7 @@ nt main(int argc, char *argv[]) {
                     sigfillset(&maskedSignals);
                     sigprocmask(SIG_SETMASK, &maskedSignals, NULL);
                     sigemptyset(&signalSet);
+                    //First 2 signal handling processes handle SIGUSR2
                     sigaddset(&signalSet, SIGUSR2);
                     while (!sigwait(&signalSet, &mainSignal)) {
                         handleSIGUSR2(mainSignal);
@@ -333,6 +342,7 @@ nt main(int argc, char *argv[]) {
                     sigfillset(&maskedSignals);
                     sigprocmask(SIG_SETMASK, &maskedSignals, NULL);
                     sigemptyset(&signalSet);
+                    //Second 2 signal handling processes handle SIGUSR1
                     sigaddset(&signalSet, SIGUSR1);
                     while (!sigwait(&signalSet, &mainSignal)) {
                         handleSIGUSR1(mainSignal);
@@ -373,7 +383,7 @@ nt main(int argc, char *argv[]) {
     //continuing the parent process
     if(processIDs != 0){
 
-        //Make the parent sleep for aa little bit
+        //Make the parent sleep for a little bit
         sleep(10);
         //Safely update the status of complete using locking
         pthread_mutex_lock(&(*sharedMemoryObject).counterMutexLock);
